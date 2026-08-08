@@ -117,7 +117,22 @@ class TestFetchIndex:
         
         # Should use the last row
         assert result == 53885.11
-    
+
+    @patch('fetchers.indices.yf.download')
+    def test_fetch_index_handles_multiindex_close_column(self, mock_download):
+        """Handles yfinance responses where Close is a MultiIndex column."""
+        target = date(2026, 7, 31)
+        
+        mock_df = pd.DataFrame(
+            [[53885.11]],
+            columns=pd.MultiIndex.from_tuples([('^DJI', 'Close')])
+        )
+        mock_download.return_value = mock_df
+        
+        result = fetch_index('^DJI', target)
+        
+        assert result == 53885.11
+
     @patch('fetchers.indices.yf.download')
     def test_fetch_index_dates_step_backward_correctly(self, mock_download):
         """Date stepping backward is correct (7 calendar days back)."""

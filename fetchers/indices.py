@@ -3,6 +3,7 @@ Fetcher for stock index data from Yahoo Finance.
 """
 
 import logging
+import pandas as pd
 import yfinance as yf
 from datetime import date, timedelta
 
@@ -44,7 +45,12 @@ def fetch_index(ticker: str, target: date) -> float | None:
                 kwargs['session'] = session
             df = yf.download(ticker, **kwargs)
             if not df.empty:
-                close_price = float(df['Close'].iloc[-1])
+                close_col = df['Close']
+                if isinstance(close_col, pd.DataFrame):
+                    close_value = close_col.iloc[-1, -1]
+                else:
+                    close_value = close_col.iloc[-1]
+                close_price = float(close_value)
                 return round(close_price, 2)
         except Exception as e:
             logger.warning(f"Error fetching {ticker} for {d}: {e}")
