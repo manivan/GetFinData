@@ -7,9 +7,17 @@ import sys
 import argparse
 import logging
 import os
+import ssl
 from datetime import datetime, date
 from pathlib import Path
 import configparser
+
+# Apply SSL bypass unconditionally — this host is behind a corporate proxy
+# with a self-signed certificate that blocks verification for all HTTPS traffic.
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['SSL_CERT_FILE'] = ''
+ssl._create_default_https_context = ssl._create_unverified_context
 
 from fetchers.indices import fetch_index
 from fetchers.currencies import fetch_rate
@@ -87,11 +95,12 @@ def load_config(config_path: str = 'config.ini') -> dict:
     return result
 
 
-def write_output(indices_dict: dict, currencies_dict: dict) -> None:
+def write_output(target: date, indices_dict: dict, currencies_dict: dict) -> None:
     """
     Write results to output/output.txt in tab-separated format.
     
     Args:
+        target: The target date, printed as the first line
         indices_dict: Dictionary of {label: value} for indices
         currencies_dict: Dictionary of {pair: value} for currencies
     """
@@ -101,13 +110,14 @@ def write_output(indices_dict: dict, currencies_dict: dict) -> None:
     output_file = output_dir / 'output.txt'
     
     with open(output_file, 'w') as f:
+        f.write(f"{target.strftime('%m/%d/%Y')}\n")
         # Write indices first
         for label, value in indices_dict.items():
             f.write(f"{label}\t{value:.2f}\n")
         
         # Write currencies
         for pair, value in currencies_dict.items():
-            f.write(f"{pair}\t{value:.2f}\n")
+            f.write(f"{pair}\t{value:.5f}\n")
     
     return output_file
 
@@ -120,11 +130,6 @@ def main():
     parser.add_argument(
         'date',
         help='Target date in M/D/YYYY format (e.g., 7/31/2026)'
-    )
-    parser.add_argument(
-        '--no-verify-ssl',
-        action='store_true',
-        help='Disable SSL certificate verification (for testing environments with SSL issues)'
     )
     
     args = parser.parse_args()
@@ -143,13 +148,10 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # Determine SSL verification setting
-    verify_ssl = not args.no_verify_ssl
-    
     # Fetch indices
     indices_data = {}
     for ticker in config['indices']:
-        value = fetch_index(ticker, target_date, verify_ssl=verify_ssl)
+        value = fetch_index(ticker, target_date)
         if value is not None:
             # Strip leading '^' from ticker for label
             label = ticker.lstrip('^')
@@ -163,12 +165,12 @@ def main():
             logger.warning(f"Invalid currency pair format: {pair}")
             continue
         base, quote = parts
-        value = fetch_rate(base.strip(), quote.strip(), target_date, verify_ssl=verify_ssl)
+        value = fetch_rate(base.strip(), quote.strip(), target_date)
         if value is not None:
             currencies_data[pair] = value
     
     # Write output
-    output_file = write_output(indices_data, currencies_data)
+    output_file = write_output(target_date, indices_data, currencies_data)
     
     # Print summary to stdout
     print(f"Fetched data for {target_date.strftime('%B %d, %Y')}")

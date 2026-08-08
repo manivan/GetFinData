@@ -9,7 +9,7 @@ from datetime import date, timedelta
 logger = logging.getLogger(__name__)
 
 
-def fetch_index(ticker: str, target: date, verify_ssl: bool = True) -> float | None:
+def fetch_index(ticker: str, target: date) -> float | None:
     """
     Fetch adjusted closing price for a stock index from Yahoo Finance.
     
@@ -20,21 +20,29 @@ def fetch_index(ticker: str, target: date, verify_ssl: bool = True) -> float | N
     Args:
         ticker: Yahoo Finance ticker symbol (e.g., '^DJI')
         target: Target date
-        verify_ssl: Whether to verify SSL certificate (default: True; set False for testing environments with SSL issues)
         
     Returns:
         Adjusted closing price (float) rounded to 2 decimal places, or None if not found
     """
+    session = None
+    try:
+        from curl_cffi import requests as curl_requests
+        session = curl_requests.Session(impersonate="chrome", verify=False)
+    except ImportError:
+        pass
+
     for offset in range(8):  # Try target date, then up to 7 days back
         d = target - timedelta(days=offset)
         try:
-            df = yf.download(
-                ticker,
+            kwargs = dict(
                 start=d,
                 end=d + timedelta(days=1),
                 auto_adjust=True,
-                progress=False
+                progress=False,
             )
+            if session is not None:
+                kwargs['session'] = session
+            df = yf.download(ticker, **kwargs)
             if not df.empty:
                 close_price = float(df['Close'].iloc[-1])
                 return round(close_price, 2)

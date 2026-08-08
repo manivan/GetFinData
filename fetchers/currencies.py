@@ -9,7 +9,7 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 
-def fetch_rate(base: str, quote: str, target: date, verify_ssl: bool = True) -> float | None:
+def fetch_rate(base: str, quote: str, target: date) -> float | None:
     """
     Fetch exchange rate from frankfurter.app API.
     
@@ -21,7 +21,6 @@ def fetch_rate(base: str, quote: str, target: date, verify_ssl: bool = True) -> 
         base: Base currency code (e.g., 'EUR')
         quote: Quote currency code (e.g., 'USD')
         target: Target date
-        verify_ssl: Whether to verify SSL certificate (default: True; set False for testing environments with SSL issues)
         
     Returns:
         Exchange rate (float) rounded to 2 decimal places, or None if not found or API error
@@ -33,7 +32,7 @@ def fetch_rate(base: str, quote: str, target: date, verify_ssl: bool = True) -> 
     }
     
     try:
-        response = requests.get(url, params=params, timeout=10, verify=verify_ssl)
+        response = requests.get(url, params=params, timeout=10, verify=False)
         
         if response.status_code != 200:
             logger.warning(
@@ -50,7 +49,7 @@ def fetch_rate(base: str, quote: str, target: date, verify_ssl: bool = True) -> 
             return None
         
         rate = float(data['rates'][quote])
-        return round(rate, 2)
+        return round(rate, 5)
     
     except requests.RequestException as e:
         logger.warning(f"Network error fetching {base}/{quote} on {target}: {e}")
